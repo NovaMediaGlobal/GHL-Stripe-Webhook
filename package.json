@@ -4,7 +4,7 @@
   "description": "GHL -> Stripe metered usage webhook",
   "main": "src/server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node src/node server.js"
   },
   "engines": {
     "node": ">=18"
