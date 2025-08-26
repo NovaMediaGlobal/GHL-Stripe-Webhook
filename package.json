@@ -2,7 +2,7 @@
   "name": "ghl-stripe-webhook",
   "version": "1.0.0",
   "description": "GHL -> Stripe metered usage webhook",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
     "start": "node server.js"
   },
