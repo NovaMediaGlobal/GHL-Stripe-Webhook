@@ -15,7 +15,8 @@ if (!STRIPE_SECRET_KEY) {                                                     //
   process.exit(1);                                                            // 12
 }                                                                             // 13
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-08-14" });   // 14
+// ✅ Correct, supported API version
+const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2025-08-27.basil' });   // 14
 
 // Parse CLIENT_MAP_JSON safely
 function getClientMap() {                                                     // 15
