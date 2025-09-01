@@ -1,4 +1,4 @@
-// 1  // Express server for GHL -> Stripe metered usage (fully corrected)
+// 1  // Express server for GHL -> Stripe metered usage (corrected final version)
 const express = require("express");                                         // 2
 const Stripe = require("stripe");                                             // 3
 
@@ -15,8 +15,8 @@ if (!STRIPE_SECRET_KEY) {                                                     //
   process.exit(1);                                                            // 12
 }                                                                             // 13
 
-// ✅ Correct, supported API version
-const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2025-08-27.basil' });   // 14
+// ✅ Correct, supported Stripe API version
+const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2025-08-27.basil' }); // 14
 
 // Parse CLIENT_MAP_JSON safely
 function getClientMap() {                                                     // 15
@@ -35,7 +35,7 @@ app.get("/", (_req, res) => res.status(200).send("OK"));                      //
 app.post("/ghl-webhook", express.raw({ type: 'application/json' }), async (req, res) => {  // 24
   try {                                                                       // 25
 
-    // Optional Stripe signature verification (runs only if stripe-signature exists)
+    // Optional Stripe signature verification
     if (req.headers['stripe-signature'] && STRIPE_WEBHOOK_SECRET) {           // 26
       const sig = req.headers['stripe-signature'];                             // 27
       try {                                                                    // 28
@@ -64,6 +64,7 @@ app.post("/ghl-webhook", express.raw({ type: 'application/json' }), async (req, 
     const { clientId, leadId, occurredAt } = payload || {};                     // 45
     if (!clientId) throw new Error("Missing clientId in webhook body.");        // 46
 
+    // Map clientId → subscription item ID (si_…)
     const map = getClientMap();                                                 // 47
     const subscriptionItemId = map[clientId];                                   // 48
     if (!subscriptionItemId) {                                                 // 49
@@ -76,7 +77,7 @@ app.post("/ghl-webhook", express.raw({ type: 'application/json' }), async (req, 
     // Idempotency key to prevent double counting if GHL retries
     const idemKey = ["ghl", clientId, leadId || "noLead", String(ts)].join(":"); // 52
 
-    // Create usage record in Stripe (metered subscription)
+    // ✅ Create usage record for subscription item (si_…)
     await stripe.subscriptionItems.createUsageRecord(
       subscriptionItemId,                                                       // 53
       {                                                                         // 54
