@@ -9,6 +9,7 @@ app.use(express.json());
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;               // from Stripe
 const SHARED_WEBHOOK_TOKEN = process.env.SHARED_WEBHOOK_TOKEN || "";   // your own secret
 const CLIENT_MAP_JSON = process.env.CLIENT_MAP_JSON || "{}";           // {"clientKey":"si_123",...}
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 if (!STRIPE_SECRET_KEY) {
   console.error("Missing STRIPE_SECRET_KEY env var.");
