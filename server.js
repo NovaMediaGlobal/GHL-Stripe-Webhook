@@ -1,4 +1,4 @@
-// 1  // Express server for GHL -> Stripe metered usage (with signing secret)
+// 1  // Express server for GHL -> Stripe metered usage (Stripe signature optional)
 const express = require("express");                                         // 2
 const Stripe = require("stripe");                                             // 3
 
@@ -33,57 +33,62 @@ app.get("/", (_req, res) => res.status(200).send("OK"));                      //
 app.post("/ghl-webhook", express.raw({ type: 'application/json' }), async (req, res) => {  // 26
   try {                                                                       // 27
 
-    // ----- Stripe signing secret verification (optional, only if Stripe calls this) -----  // 28
-    if (STRIPE_WEBHOOK_SECRET) {                                              // 29
+    // ----- Optional Stripe signing secret verification -----                 // 28
+    if (req.headers['stripe-signature'] && STRIPE_WEBHOOK_SECRET) {           // 29
       const sig = req.headers['stripe-signature'];                             // 30
       try {                                                                    // 31
         Stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);  // 32
       } catch(err) {                                                           // 33
-        console.error("Webhook signature verification failed:", err.message); // 34
+        console.error("Stripe signature verification failed:", err.message);  // 34
         return res.status(400).send(`Webhook Error: ${err.message}`);         // 35
       }                                                                        // 36
     }                                                                          // 37
 
-    // Parse JSON body (for GHL payload)                                        // 38
-    const payload = JSON.parse(req.body.toString());                            // 39
-
-    // Basic shared-secret auth for GHL                                          // 40
-    const token = req.get("X-Webhook-Token");                                   // 41
-    if (!SHARED_WEBHOOK_TOKEN || token !== SHARED_WEBHOOK_TOKEN) {              // 42
-      return res.status(401).send("Unauthorized");                              // 43
+    // Parse JSON body safely (for GHL payload)                                 // 38
+    let payload;                                                                // 39
+    try {                                                                       // 40
+      payload = JSON.parse(req.body.toString());                                // 41
+    } catch(e) {                                                               // 42
+      throw new Error("Invalid JSON payload");                                  // 43
     }                                                                           // 44
 
-    // Expecting JSON like: { clientId: "roofco", leadId: "abc123", occurredAt: "2025-08-25T20:00:00Z" }  // 45
-    const { clientId, leadId, occurredAt } = payload || {};                     // 46
-    if (!clientId) throw new Error("Missing clientId in webhook body.");        // 47
+    // Basic shared-secret auth for GHL                                          // 45
+    const token = req.get("X-Webhook-Token");                                   // 46
+    if (!SHARED_WEBHOOK_TOKEN || token !== SHARED_WEBHOOK_TOKEN) {              // 47
+      return res.status(401).send("Unauthorized");                              // 48
+    }                                                                           // 49
 
-    const map = getClientMap();                                                 // 48
-    const meterId = map[clientId];                                              // 49
-    if (!meterId) {                                                             // 50
-      throw new Error(`Unknown clientId '${clientId}' (no billing meter mapping).`);  // 51
+    // Expecting JSON like: { clientId: "roofco", leadId: "abc123", occurredAt: "2025-08-25T20:00:00Z" }  // 50
+    const { clientId, leadId, occurredAt } = payload || {};                     // 51
+    if (!clientId) throw new Error("Missing clientId in webhook body.");        // 52
+
+    const map = getClientMap();                                                 // 53
+    const meterId = map[clientId];                                              // 54
+    if (!meterId) {                                                             // 55
+      throw new Error(`Unknown clientId '${clientId}' (no billing meter mapping).`);  // 56
     }
 
-    // Timestamp for Stripe (seconds). Prefer GHL-provided time; fallback to now. // 52
-    const ts = occurredAt ? Math.floor(new Date(occurredAt).getTime() / 1000) : Math.floor(Date.now() / 1000); // 53
+    // Timestamp for Stripe (seconds). Prefer GHL-provided time; fallback to now. // 57
+    const ts = occurredAt ? Math.floor(new Date(occurredAt).getTime() / 1000) : Math.floor(Date.now() / 1000); // 58
 
-    // Idempotency key to prevent double counting if GHL retries                // 54
-    const idemKey = ["ghl", clientId, leadId || "noLead", String(ts)].join(":"); // 55
+    // Idempotency key to prevent double counting if GHL retries                // 59
+    const idemKey = ["ghl", clientId, leadId || "noLead", String(ts)].join(":"); // 60
 
-    // Create billing meter event                                               // 56
-    await stripe.billingMeterEvents.create({                                   // 57
-      meter: meterId,                                                          // 58
-      quantity: 1,                                                             // 59
-      timestamp: ts,                                                           // 60
-    }, { idempotencyKey: idemKey });                                           // 61
+    // Create billing meter event                                               // 61
+    await stripe.billingMeterEvents.create({                                   // 62
+      meter: meterId,                                                          // 63
+      quantity: 1,                                                             // 64
+      timestamp: ts,                                                           // 65
+    }, { idempotencyKey: idemKey });                                           // 66
 
-    console.log(`+1 lead recorded for client '${clientId}' (meter ${meterId})`); // 62
-    return res.json({ success: true });                                         // 63
+    console.log(`+1 lead recorded for client '${clientId}' (meter ${meterId})`); // 67
+    return res.json({ success: true });                                         // 68
 
-  } catch (err) {                                                              // 64
-    console.error("Webhook error:", err.message);                              // 65
-    return res.status(400).send(err.message);                                  // 66
-  }                                                                            // 67
-});                                                                            // 68
+  } catch (err) {                                                              // 69
+    console.error("Webhook error:", err.message);                              // 70
+    return res.status(400).send(err.message);                                  // 71
+  }                                                                            // 72
+});                                                                            // 73
 
-const PORT = process.env.PORT || 3000;                                         // 69
-app.listen(PORT, () => console.log(`Server listening on ${PORT}`));           // 70
+const PORT = process.env.PORT || 3000;                                         // 74
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));           // 75
